@@ -1,3 +1,4 @@
+from logging import fatal
 import os
 
 import discord
@@ -13,22 +14,29 @@ async def close(ctx):
     await ctx.message.delete()
     await bot.close()
 
-@bot.command(name='add', brief='Adds a new word to the list')
+@bot.command(name='redo', brief='Compresses all words into one message')
+async def redo(ctx):
+    await ctx.message.delete()
+    word_lst = await get_word_list(await ctx.channel.history(limit=200).flatten())
+    await create_messages(word_lst, ctx)
+
+@bot.command(name='add', brief='Adds the given words to the list')
 async def add(ctx, *args):
     await ctx.message.delete()
     word_lst = await get_word_list(await ctx.channel.history(limit=200).flatten())
-    word_lst.extend(x for x in args if x not in word_lst)
-    await ctx.send(create_word_list(word_lst))
+    for arg in args:
+        if arg not in word_lst and len(arg) < 31 and "'" not in arg:
+                word_lst.append(arg)
+    await create_messages(word_lst, ctx)
 
-# @bot.command(name='rm')
-# async def remove(ctx, *args):
-#     await ctx.message.delete()
-#     if len(args) < 1:
-#         await ctx.send("expected command: !rm \"word\" ...")
-#     else:
-#         word_lst = await get_word_list(await ctx.channel.history(limit=200).flatten())
-#         await ctx.send(create_word_list(word for word in word_lst if word not in args))
-
+@bot.command(name='rm', brief='Removes the given words from the list')
+async def remove(ctx, *args):
+    await ctx.message.delete()
+    word_lst = await get_word_list(await ctx.channel.history(limit=200).flatten())
+    for arg in args:
+        if arg in word_lst:
+            word_lst.remove(arg)
+    await create_messages(word_lst, ctx)
 
 @bot.command(name='ng', brief='Replaces the game link with a new one')
 async def new_game(ctx, arg):
@@ -58,13 +66,16 @@ async def get_word_list(messages):
 
     return word_lst
 
-def create_word_list(words):
-    msg = "||"
-    msg += words[0]
+async def create_messages(words, ctx):
+    msg = "||" + words[0]
     for word in words[1:]:
+        if (len(msg) + len(word) + 2) >= 1990:
+            msg += "||"
+            await ctx.send(msg)
+            msg = "||" 
         msg += ", " + word
-    msg += "||"
 
-    return msg
+    msg += "||"
+    await ctx.send(msg)
 
 bot.run(TOKEN)
